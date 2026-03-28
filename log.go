@@ -5,7 +5,6 @@ import (
 	"os"
 )
 
-var writeLogs bool
 var logs []string
 
 func log(format string, args ...any) {

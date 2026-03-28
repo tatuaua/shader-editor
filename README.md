@@ -2,6 +2,9 @@
 
 A terminal-based live shader editor. Write math expressions that produce RGB color values per pixel, rendered as a 50×50 grid in your terminal using ANSI true-color.
 
+![](images/image.png)
+
+
 ## Usage
 
 ```
