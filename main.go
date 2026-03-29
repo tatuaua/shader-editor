@@ -14,14 +14,13 @@ import (
 )
 
 func main() {
-	args := os.Args[1:]
-
 	p := tea.NewProgram(initialModel())
 
 	if _, err := p.Run(); err != nil {
 		log(err.Error(), nil)
 	}
 
+	args := os.Args[1:]
 	if len(args) > 0 && args[0] == "savelogs" {
 		saveLogs()
 	}
@@ -48,7 +47,9 @@ func initialModel() model {
 	ti.SetWidth(100)
 	ti.Focus()
 
-	defaultShader := "sin(t * 0.001 + x * 6.0) * 127.0 + 128.0\nsin(t * 0.001 + y * 6.0) * 127.0 + 128.0\nsin(t * 0.001 + (x + y) * 3.0) * 127.0 + 128.0"
+	defaultShader := "sin(t * 0.001 + x * 6.0) * 127.0 + 128.0\n" +
+		"sin(t * 0.001 + y * 6.0) * 127.0 + 128.0\n" +
+		"sin(t * 0.001 + (x + y) * 3.0) * 127.0 + 128.0"
 	ti.SetValue(defaultShader)
 
 	m := model{
@@ -180,10 +181,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		switch msg.String() {
-		case "esc":
-			if m.textarea.Focused() {
-				m.textarea.Blur()
-			}
 		case "ctrl+s":
 			m.CompilePrograms()
 			log("%s", m.textarea.Value())
@@ -199,7 +196,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case TickMsg:
-		//Log("tick: programs=[%p, %p, %p]", m.programs[0], m.programs[1], m.programs[2])
 		if m.programs[0] == nil && m.programs[1] == nil && m.programs[2] == nil {
 			return m, doTick()
 		}
@@ -209,16 +205,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		for y := range Height {
 			for x := range Width {
 				r, g, b := m.DoMath(t, float64(x)/float64(Width-1), float64(Height-1-y)/float64(Height-1))
-
-				// Start ANSI Background sequence: ESC[48;2;
 				buf = append(buf, "\033[48;2;"...)
 				buf = strconv.AppendInt(buf, int64(r), 10)
 				buf = append(buf, ';')
 				buf = strconv.AppendInt(buf, int64(g), 10)
 				buf = append(buf, ';')
 				buf = strconv.AppendInt(buf, int64(b), 10)
-
-				// "m" finishes the color, "  " is the pixel, "\033[0m" resets
 				buf = append(buf, "m  \033[0m"...)
 			}
 			buf = append(buf, '\n')
@@ -226,7 +218,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.frameBuffer = string(buf)
 		return m, doTick()
-	// We handle errors just like any other message
+
 	case errMsg:
 		m.err = msg
 		return m, nil
@@ -238,16 +230,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() tea.View {
-
 	var c *tea.Cursor
 	if !m.textarea.VirtualCursor() {
 		c = m.textarea.Cursor()
 	}
 
-	f := strings.Join([]string{
-		m.textarea.View(),
-		m.frameBuffer,
-	}, "\n")
+	f := m.textarea.View() + "\n" + m.frameBuffer
 
 	v := tea.NewView(f)
 	v.Cursor = c
