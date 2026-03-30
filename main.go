@@ -35,13 +35,19 @@ const (
 
 type errMsg error
 
+type channelExpr struct {
+	program    *vm.Program
+	compileErr error
+}
+
 type model struct {
 	frameBuffer string
 	textarea    textarea.Model
 	err         error
 	startTime   int64
-	programs    [3]*vm.Program
-	compileErrs [3]error
+	redExpr     channelExpr
+	greenExpr   channelExpr
+	blueExpr    channelExpr
 	hint        string
 }
 
@@ -82,50 +88,6 @@ func (m model) Init() tea.Cmd {
 	return doTick()
 }
 
-func shaderEnv(t, x, y float64) map[string]any {
-	return map[string]any{
-		"t": t, "x": x, "y": y,
-		// Constants
-		"PI": math.Pi, "TAU": math.Pi * 2, "E": math.E,
-		// Trig
-		"sin": math.Sin, "cos": math.Cos, "tan": math.Tan,
-		"atan": math.Atan, "atan2": math.Atan2,
-		// Power / exp / log
-		"pow": math.Pow, "sqrt": math.Sqrt, "exp": math.Exp,
-		"log": math.Log, "log2": math.Log2,
-		// Rounding
-		"floor": math.Floor, "ceil": math.Ceil, "round": math.Round,
-		"abs": math.Abs,
-		// Range
-		"min": math.Min, "max": math.Max, "mod": math.Mod,
-		// Shader-specific
-		"fract": func(x float64) float64 { return x - math.Floor(x) },
-		"clamp": func(x, lo, hi float64) float64 { return math.Max(lo, math.Min(hi, x)) },
-		"mix":   func(a, b, t float64) float64 { return a*(1-t) + b*t },
-		"step": func(edge, x float64) float64 {
-			if x < edge {
-				return 0
-			}
-			return 1
-		},
-		"smoothstep": func(e0, e1, x float64) float64 {
-			t := math.Max(0, math.Min(1, (x-e0)/(e1-e0)))
-			return t * t * (3 - 2*t)
-		},
-		"sign": func(x float64) float64 {
-			if x < 0 {
-				return -1
-			}
-			if x > 0 {
-				return 1
-			}
-			return 0
-		},
-		"length": func(x, y float64) float64 { return math.Sqrt(x*x + y*y) },
-		"fmod":   func(a, b float64) float64 { return math.Mod(a, b) },
-	}
-}
-
 func compileOpts() []expr.Option {
 	return []expr.Option{
 		expr.Env(shaderEnv(0, 0, 0)),
@@ -137,30 +99,31 @@ func compileOpts() []expr.Option {
 	}
 }
 
+func compileChannel(line string, opts []expr.Option) channelExpr {
+	p, err := expr.Compile(line, opts...)
+	if err != nil {
+		return channelExpr{compileErr: err}
+	}
+	return channelExpr{program: p}
+}
+
 func (m *model) CompilePrograms() {
-	text := m.textarea.Value()
-	lines := strings.Split(text, "\n")
-
-	m.programs = [3]*vm.Program{}
-	m.compileErrs = [3]error{}
-
+	lines := strings.SplitN(m.textarea.Value(), "\n", 3)
 	opts := compileOpts()
 
-	log("CompilePrograms: %d lines", len(lines))
-	for i := 0; i < 3 && i < len(lines); i++ {
-		log("compiling line %d: %q", i, lines[i])
-		p, err := expr.Compile(lines[i], opts...)
-		if err != nil {
-			log("compile error line %d: %s", i, err)
-			m.programs[i] = nil
-			m.compileErrs[i] = err
-			continue
-		}
-		m.programs[i] = p
-		m.compileErrs[i] = nil
-		log("compiled line %d OK, program=%p", i, p)
+	m.redExpr = channelExpr{}
+	m.greenExpr = channelExpr{}
+	m.blueExpr = channelExpr{}
+
+	if len(lines) > 0 {
+		m.redExpr = compileChannel(lines[0], opts)
 	}
-	log("programs after compile: [%p, %p, %p]", m.programs[0], m.programs[1], m.programs[2])
+	if len(lines) > 1 {
+		m.greenExpr = compileChannel(lines[1], opts)
+	}
+	if len(lines) > 2 {
+		m.blueExpr = compileChannel(lines[2], opts)
+	}
 }
 
 func clampColor(v float64) int {
@@ -170,22 +133,20 @@ func clampColor(v float64) int {
 	return int(math.Max(0, math.Min(255, v)))
 }
 
+func evalChannel(ch channelExpr, env map[string]any) int {
+	if ch.program == nil {
+		return 0
+	}
+	output, err := expr.Run(ch.program, env)
+	if err != nil {
+		return 0
+	}
+	return clampColor(output.(float64))
+}
+
 func (m model) DoMath(t, x, y float64) (int, int, int) {
 	env := shaderEnv(t, x, y)
-
-	var rgb [3]int
-	for i, p := range m.programs {
-		if p == nil {
-			continue
-		}
-		output, err := expr.Run(p, env)
-		if err != nil {
-			continue
-		}
-		rgb[i] = clampColor(output.(float64))
-	}
-
-	return rgb[0], rgb[1], rgb[2]
+	return evalChannel(m.redExpr, env), evalChannel(m.greenExpr, env), evalChannel(m.blueExpr, env)
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -210,7 +171,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case TickMsg:
-		if m.programs[0] == nil && m.programs[1] == nil && m.programs[2] == nil {
+		if m.redExpr.program == nil && m.greenExpr.program == nil && m.blueExpr.program == nil {
 			return m, doTick()
 		}
 		buf := make([]byte, 0, Height*Width*25)
@@ -249,20 +210,20 @@ func (m model) View() tea.View {
 		c = m.textarea.Cursor()
 	}
 
-	f := ""
-	if m.compileErrs[0] != nil || m.compileErrs[1] != nil || m.compileErrs[2] != nil {
-		errLines := []string{}
-		for i, err := range m.compileErrs {
-			if err != nil {
-				errLines = append(errLines, fmt.Sprintf("Line %d: %s", i+1, err.Error()))
-			}
+	content := ""
+	var errLines []string
+	for i, ch := range []channelExpr{m.redExpr, m.greenExpr, m.blueExpr} {
+		if ch.compileErr != nil {
+			errLines = append(errLines, fmt.Sprintf("Line %d: %s", i+1, ch.compileErr.Error()))
 		}
-		f = m.textarea.View() + "\n" + m.hint + "\n" + strings.Join(errLines, "\n") + "\n" + m.frameBuffer
+	}
+	if len(errLines) > 0 {
+		content = m.textarea.View() + "\n" + m.hint + "\n" + strings.Join(errLines, "\n") + "\n" + m.frameBuffer
 	} else {
-		f = m.textarea.View() + "\n" + m.hint + "\n" + m.frameBuffer
+		content = m.textarea.View() + "\n" + m.hint + "\n" + m.frameBuffer
 	}
 
-	v := tea.NewView(f)
+	v := tea.View{Content: content}
 	v.Cursor = c
 	v.AltScreen = true
 	return v
