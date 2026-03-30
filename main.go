@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math"
 	"os"
 	"strconv"
@@ -9,6 +10,7 @@ import (
 
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/vm"
 )
@@ -39,6 +41,8 @@ type model struct {
 	err         error
 	startTime   int64
 	programs    [3]*vm.Program
+	compileErrs [3]error
+	hint        string
 }
 
 func initialModel() model {
@@ -47,12 +51,17 @@ func initialModel() model {
 	ti.SetWidth(100)
 	ti.Focus()
 
+	hint := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("240")).
+		Render("ctrl+s to compile, ctrl+d to clear, ctrl+c to quit")
+
 	defaultShader := "sin(t * 0.001 + x * 6.0) * 127.0 + 128.0\n" +
 		"sin(t * 0.001 + y * 6.0) * 127.0 + 128.0\n" +
 		"sin(t * 0.001 + (x + y) * 3.0) * 127.0 + 128.0"
 	ti.SetValue(defaultShader)
 
 	m := model{
+		hint:      hint,
 		textarea:  ti,
 		err:       nil,
 		startTime: time.Now().UnixMilli(),
@@ -132,6 +141,9 @@ func (m *model) CompilePrograms() {
 	text := m.textarea.Value()
 	lines := strings.Split(text, "\n")
 
+	m.programs = [3]*vm.Program{}
+	m.compileErrs = [3]error{}
+
 	opts := compileOpts()
 
 	log("CompilePrograms: %d lines", len(lines))
@@ -141,9 +153,11 @@ func (m *model) CompilePrograms() {
 		if err != nil {
 			log("compile error line %d: %s", i, err)
 			m.programs[i] = nil
+			m.compileErrs[i] = err
 			continue
 		}
 		m.programs[i] = p
+		m.compileErrs[i] = nil
 		log("compiled line %d OK, program=%p", i, p)
 	}
 	log("programs after compile: [%p, %p, %p]", m.programs[0], m.programs[1], m.programs[2])
@@ -235,7 +249,18 @@ func (m model) View() tea.View {
 		c = m.textarea.Cursor()
 	}
 
-	f := m.textarea.View() + "\n" + m.frameBuffer
+	f := ""
+	if m.compileErrs[0] != nil || m.compileErrs[1] != nil || m.compileErrs[2] != nil {
+		errLines := []string{}
+		for i, err := range m.compileErrs {
+			if err != nil {
+				errLines = append(errLines, fmt.Sprintf("Line %d: %s", i+1, err.Error()))
+			}
+		}
+		f = m.textarea.View() + "\n" + m.hint + "\n" + strings.Join(errLines, "\n") + "\n" + m.frameBuffer
+	} else {
+		f = m.textarea.View() + "\n" + m.hint + "\n" + m.frameBuffer
+	}
 
 	v := tea.NewView(f)
 	v.Cursor = c
