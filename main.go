@@ -1,9 +1,11 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"math"
 	"os"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"time"
@@ -15,22 +17,36 @@ import (
 	"github.com/expr-lang/expr/vm"
 )
 
+var (
+	savelog = flag.Bool("savelogs", false, "save logs to shader.log on exit")
+	profile = flag.Bool("profile", false, "write CPU profile to cpu.prof")
+)
+
 func main() {
+	flag.IntVar(&Height, "h", Height, "grid height in pixels")
+	flag.IntVar(&Width, "w", Width, "grid width in pixels")
+	flag.Parse()
+
+	if *profile {
+		f, _ := os.Create("cpu.prof")
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
+
 	p := tea.NewProgram(initialModel())
 
 	if _, err := p.Run(); err != nil {
 		log(err.Error(), nil)
 	}
 
-	args := os.Args[1:]
-	if len(args) > 0 && args[0] == "savelogs" {
+	if *savelog {
 		saveLogs()
 	}
 }
 
-const (
-	Height = 50
-	Width  = 50
+var (
+	Height = 100
+	Width  = 100
 )
 
 type errMsg error
@@ -42,6 +58,7 @@ type channelExpr struct {
 
 type model struct {
 	frameBuffer string
+	frameBytes  []byte
 	textarea    textarea.Model
 	err         error
 	startTime   int64
@@ -89,8 +106,11 @@ func (m model) Init() tea.Cmd {
 }
 
 func compileOpts() []expr.Option {
+	shaderEnvInitial["t"] = 0.0
+	shaderEnvInitial["x"] = 0.0
+	shaderEnvInitial["y"] = 0.0
 	return []expr.Option{
-		expr.Env(shaderEnv(0, 0, 0)),
+		expr.Env(shaderEnvInitial),
 		expr.AsFloat64(),
 		expr.Function("fmod", func(params ...any) (any, error) {
 			return math.Mod(params[0].(float64), params[1].(float64)), nil
@@ -145,8 +165,11 @@ func evalChannel(ch channelExpr, env map[string]any) int {
 }
 
 func (m model) DoMath(t, x, y float64) (int, int, int) {
-	env := shaderEnv(t, x, y)
-	return evalChannel(m.redExpr, env), evalChannel(m.greenExpr, env), evalChannel(m.blueExpr, env)
+	//env := shaderEnv(t, x, y)
+	shaderEnvInitial["t"] = t
+	shaderEnvInitial["x"] = x
+	shaderEnvInitial["y"] = y
+	return evalChannel(m.redExpr, shaderEnvInitial), evalChannel(m.greenExpr, shaderEnvInitial), evalChannel(m.blueExpr, shaderEnvInitial)
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -174,24 +197,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.redExpr.program == nil && m.greenExpr.program == nil && m.blueExpr.program == nil {
 			return m, doTick()
 		}
-		buf := make([]byte, 0, Height*Width*25)
 		t := float64(time.Now().UnixMilli() - m.startTime)
+
+		m.frameBytes = m.frameBytes[:0]
 
 		for y := range Height {
 			for x := range Width {
 				r, g, b := m.DoMath(t, float64(x)/float64(Width-1), float64(Height-1-y)/float64(Height-1))
-				buf = append(buf, "\033[48;2;"...)
-				buf = strconv.AppendInt(buf, int64(r), 10)
-				buf = append(buf, ';')
-				buf = strconv.AppendInt(buf, int64(g), 10)
-				buf = append(buf, ';')
-				buf = strconv.AppendInt(buf, int64(b), 10)
-				buf = append(buf, "m  \033[0m"...)
+				m.frameBytes = append(m.frameBytes, "\033[48;2;"...)
+				m.frameBytes = strconv.AppendInt(m.frameBytes, int64(r), 10)
+				m.frameBytes = append(m.frameBytes, ';')
+				m.frameBytes = strconv.AppendInt(m.frameBytes, int64(g), 10)
+				m.frameBytes = append(m.frameBytes, ';')
+				m.frameBytes = strconv.AppendInt(m.frameBytes, int64(b), 10)
+				m.frameBytes = append(m.frameBytes, "m  \033[0m"...)
 			}
-			buf = append(buf, '\n')
+			m.frameBytes = append(m.frameBytes, '\n')
 		}
 
-		m.frameBuffer = string(buf)
+		m.frameBuffer = string(m.frameBytes)
 		return m, doTick()
 
 	case errMsg:

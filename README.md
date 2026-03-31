@@ -1,17 +1,63 @@
 # Shader Editor
 
-A terminal-based live shader editor. Write math expressions that produce RGB color values per pixel, rendered as a 50×50 grid in your terminal using ANSI true-color.
+A terminal-based live shader editor. Write math expressions that produce RGB color values per pixel, rendered as a 100×100 grid in your terminal using ANSI true-color.
 
 ![](images/image.png)
 
 
+## Requirements
+
+- **Go 1.25+** — [go.dev/dl](https://go.dev/dl/)
+- A terminal with true-color support (Windows Terminal, iTerm2, most modern Linux terminals)
+
+### Windows
+
+1. Install Go from [go.dev/dl](https://go.dev/dl/) (the `.msi` installer adds Go to your PATH automatically).
+2. Open **Windows Terminal** (or PowerShell).
+3. Clone and run:
+   ```powershell
+   git clone https://github.com/your-username/shadereditor.git
+   cd shadereditor
+   go run .
+   ```
+
+### Linux
+
+1. Install Go:
+   ```bash
+   # Ubuntu/Debian
+   sudo apt update && sudo apt install -y golang-go
+
+   # Or download from go.dev for the latest version
+   wget https://go.dev/dl/go1.25.7.linux-amd64.tar.gz
+   sudo tar -C /usr/local -xzf go1.25.7.linux-amd64.tar.gz
+   export PATH=$PATH:/usr/local/go/bin
+   ```
+2. Clone and run:
+   ```bash
+   git clone https://github.com/your-username/shadereditor.git
+   cd shadereditor
+   go run .
+   ```
+
 ## Usage
 
-```
-go run .
-```
+Write three lines of expressions — one per color channel (R, G, B). Press **Ctrl+S** to compile and see the result animate. Press **Ctrl+D** to clear. Press **Ctrl+C** to quit.
 
-Write three lines of expressions — one per color channel (R, G, B). Press **Ctrl+S** and see the result animate. Press **Ctrl+C** to quit.
+## Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-w` | `100` | Grid width in pixels |
+| `-h` | `100` | Grid height in pixels |
+| `-profile` | `false` | Write CPU profile to `cpu.prof` |
+| `-savelogs` | `false` | Save logs to `shader.log` on exit |
+
+```bash
+go run . -w 80 -h 60          # custom resolution
+go run . -profile              # enable CPU profiling
+go run . -savelogs             # save logs on exit
+```
 
 ## Variables
 

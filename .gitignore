@@ -1,2 +1,4 @@
 /bin
 /shader.log
+*.exe
+*.prof
