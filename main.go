@@ -215,7 +215,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.frameBytes = append(m.frameBytes, '\n')
 		}
 
-		m.frameBuffer = string(m.frameBytes)
+		//m.frameBuffer = string(m.frameBytes)
 		return m, doTick()
 
 	case errMsg:
@@ -242,9 +242,9 @@ func (m model) View() tea.View {
 		}
 	}
 	if len(errLines) > 0 {
-		content = m.textarea.View() + "\n" + m.hint + "\n" + strings.Join(errLines, "\n") + "\n" + m.frameBuffer
+		content = m.textarea.View() + "\n" + m.hint + "\n" + strings.Join(errLines, "\n") + "\n" + string(m.frameBytes)
 	} else {
-		content = m.textarea.View() + "\n" + m.hint + "\n" + m.frameBuffer
+		content = m.textarea.View() + "\n" + m.hint + "\n" + string(m.frameBytes)
 	}
 
 	v := tea.View{Content: content}

@@ -2,7 +2,7 @@ package main
 
 import "math"
 
-var shaderEnvInitial map[string]any = map[string]any{
+var shaderEnvInitial = map[string]any{
 	"t": 0.0, "x": 0.0, "y": 0.0,
 	// Constants
 	"PI": math.Pi, "TAU": math.Pi * 2, "E": math.E,
