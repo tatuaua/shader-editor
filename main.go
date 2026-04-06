@@ -45,8 +45,8 @@ func main() {
 }
 
 var (
-	Height = 100
-	Width  = 100
+	Height = 50
+	Width  = 50
 )
 
 type errMsg error
@@ -164,7 +164,7 @@ func evalChannel(ch channelExpr, env map[string]any) int {
 	return clampColor(output.(float64))
 }
 
-func (m model) DoMath(t, x, y float64) (int, int, int) {
+func (m *model) DoMath(t, x, y float64) (int, int, int) {
 	//env := shaderEnv(t, x, y)
 	shaderEnvInitial["t"] = t
 	shaderEnvInitial["x"] = x
