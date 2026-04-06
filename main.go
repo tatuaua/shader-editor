@@ -57,15 +57,14 @@ type channelExpr struct {
 }
 
 type model struct {
-	frameBuffer string
-	frameBytes  []byte
-	textarea    textarea.Model
-	err         error
-	startTime   int64
-	redExpr     channelExpr
-	greenExpr   channelExpr
-	blueExpr    channelExpr
-	hint        string
+	frameBytes []byte
+	textarea   textarea.Model
+	err        error
+	startTime  int64
+	redExpr    channelExpr
+	greenExpr  channelExpr
+	blueExpr   channelExpr
+	hint       string
 }
 
 func initialModel() model {
@@ -106,11 +105,11 @@ func (m model) Init() tea.Cmd {
 }
 
 func compileOpts() []expr.Option {
-	shaderEnvInitial["t"] = 0.0
-	shaderEnvInitial["x"] = 0.0
-	shaderEnvInitial["y"] = 0.0
+	shaderEnv["t"] = 0.0
+	shaderEnv["x"] = 0.0
+	shaderEnv["y"] = 0.0
 	return []expr.Option{
-		expr.Env(shaderEnvInitial),
+		expr.Env(shaderEnv),
 		expr.AsFloat64(),
 		expr.Function("fmod", func(params ...any) (any, error) {
 			return math.Mod(params[0].(float64), params[1].(float64)), nil
@@ -165,11 +164,10 @@ func evalChannel(ch channelExpr, env map[string]any) int {
 }
 
 func (m *model) DoMath(t, x, y float64) (int, int, int) {
-	//env := shaderEnv(t, x, y)
-	shaderEnvInitial["t"] = t
-	shaderEnvInitial["x"] = x
-	shaderEnvInitial["y"] = y
-	return evalChannel(m.redExpr, shaderEnvInitial), evalChannel(m.greenExpr, shaderEnvInitial), evalChannel(m.blueExpr, shaderEnvInitial)
+	shaderEnv["t"] = t
+	shaderEnv["x"] = x
+	shaderEnv["y"] = y
+	return evalChannel(m.redExpr, shaderEnv), evalChannel(m.greenExpr, shaderEnv), evalChannel(m.blueExpr, shaderEnv)
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -215,7 +213,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.frameBytes = append(m.frameBytes, '\n')
 		}
 
-		//m.frameBuffer = string(m.frameBytes)
 		return m, doTick()
 
 	case errMsg:
