@@ -1,6 +1,6 @@
 # Shader Editor
 
-A terminal-based live shader editor. Write math expressions that produce RGB color values per pixel, rendered as a 100×100 grid in your terminal using ANSI true-color.
+A terminal-based live shader editor that allows you to write math expressions that produce RGB color values per pixel, rendered as a 100×100 grid in your terminal using ANSI true-color.
 
 ![](images/image.png)
 
